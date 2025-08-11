@@ -1,0 +1,29 @@
+services:
+
+  scheduler:
+    image: php-fpm
+    restart: unless-stopped
+    depends_on:
+      - php-fpm
+    volumes:
+      - ./:/var/www
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+    command: "php /var/www/artisan schedule:work"
+
+  queue-default:
+    image: php-fpm
+    restart: unless-stopped
+    depends_on:
+      - php-fpm
+    volumes:
+      - ./:/var/www
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+    command: "php /var/www/artisan queue:work --queue=default --verbose --tries=1 --timeout=30"
+    deploy:
+      replicas: 8

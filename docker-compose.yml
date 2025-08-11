@@ -1,0 +1,40 @@
+services:
+
+    php-fpm:
+        image: php-fpm
+        build: ./docker/php-fpm
+        depends_on:
+            - sql
+            - redis
+        volumes:
+            - ./:/var/www
+            - ./docker/volume/php/log:/var/log/php
+            - /var/www/.git
+            - /var/www/.idea
+
+    nginx:
+        build:
+            context: ./docker/nginx
+        depends_on:
+            - php-fpm
+        volumes:
+            - ./:/var/www
+            - ./docker/nginx/ssl:/etc/nginx/ssl
+            - ./docker/volume/nginx/logs:/var/log/nginx
+
+    sql:
+        image: postgres:17.4
+        restart: unless-stopped
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./docker/volume/postgres:/backups
+        environment:
+            - POSTGRES_DB=${DB_DATABASE}
+            - POSTGRES_USER=${DB_USERNAME}
+            - POSTGRES_PASSWORD=${DB_PASSWORD}
+
+    redis:
+        image: redis:latest
+
+volumes:
+    pgdata:

@@ -1,0 +1,17 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "watch": "vite build --watch"
+    },
+    "devDependencies": {
+        "laravel-vite-plugin": "^1.0",
+        "less-loader": "^12",
+        "vite": "^6"
+    },
+    "dependencies": {
+        "@erbelion/vite-plugin-laravel-purgecss": "^0.3"
+    }
+}
