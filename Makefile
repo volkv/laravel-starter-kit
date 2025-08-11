@@ -10,7 +10,12 @@ execTTY:
 docker-down:
 	docker compose down --remove-orphans
 
-docker-build:
+ssl-generate:
+	mkdir -p docker/nginx/local/ssl
+	mkcert -key-file docker/nginx/local/ssl/key.pem -cert-file docker/nginx/local/ssl/cert.pem localhost
+
+docker-build: ssl-generate
+	docker compose build nginx-base
 	docker compose up --build -d
 
 storage-link:
@@ -30,7 +35,7 @@ setup: key-generate storage-link npm-install npm-prod
 update-prod: pull perm docker-build composer-update-prod npm-install npm-prod cache
 
 docker-stop-all:
-	docker stop $$(docker ps -q) || true
+	docker ps -q | xargs -r docker stop || true
 
 key-generate:
 	make exec cmd="php artisan key:generate"
@@ -78,7 +83,7 @@ npm-watch:
 	make exec-root cmd="npm run watch"
 
 perm:
-	sudo chown -R 33:33 .
+	sudo chown -R 1000:1000 .
 	sudo chmod -R 775  .
 
 cache: perm
@@ -95,13 +100,6 @@ composer-install-prod:
 
 composer-dump:
 	make exec cmd="composer dump-autoload"
-
-seed:
-	make exec cmd="php artisan db:seed"
-
-install:
-	make exec cmd="php artisan storage:link"
-	make exec cmd="php artisan key:generate"
 
 log-queue:
 	docker compose logs --tail 50 -f queue-default
@@ -124,7 +122,7 @@ backup-db:
 restore-db:
 	docker compose exec  -u root  -T sql bash -c  "dropdb --force --if-exists postgres && createdb postgres && pg_restore -d postgres -j 4 /backups/backup.gz"
 
-include .env
+-include .env
 
 push-db:
 	scp -i ~/.ssh/id_rsa docker/volume/postgres/backup.gz root@${SERVER_IP}:${GITHUB_REPOSITORY}/docker/volume/postgres/backup.gz
@@ -158,5 +156,3 @@ _test-feature:
 
 test: _test-pre _test-all after-test
 
-cmd-test:
-	make exec-root cmd="php artisan volkv:test"

@@ -1,53 +1,51 @@
-FROM php:8.4.6-fpm
+FROM php:8.4.11-fpm-alpine
 
 # Install dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
+RUN apk add --no-cache \
+    build-base \
+    autoconf \
     libpng-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
     zip \
     jpegoptim optipng pngquant gifsicle \
     vim \
-    locales \
     unzip \
     git \
     curl \
-    libmpc-dev \
-    libonig-dev \
+    mpc1-dev \
+    oniguruma-dev \
     libzip-dev \
     libxml2-dev \
-    libcurl4-openssl-dev\
-    libpng-dev \
+    curl-dev \
     libxpm-dev \
-    libvpx-dev
+    libvpx-dev \
+    icu-dev \
+    gmp-dev \
+    bash
 
 #postgres
-
-RUN apt-get install -y libpq-dev
+RUN apk add --no-cache postgresql-dev
 RUN docker-php-ext-configure pgsql -with-pgsql=/usr/local/pgsql
 RUN docker-php-ext-install pdo pdo_pgsql pgsql
 
 # NodeJS
-RUN curl -sL https://deb.nodesource.com/setup_22.x | bash - && \
-    apt-get install -y nodejs
+RUN apk add --no-cache nodejs npm
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Create user with UID/GID 1000:1000  
+RUN addgroup -g 1000 appuser && \
+    adduser -u 1000 -G appuser -D -s /bin/bash appuser
 
-RUN mkdir /composer
-RUN mkdir /npm
-RUN chown www-data:www-data /npm
-RUN chown www-data:www-data /composer
+# Create directories for PHP and logs
+RUN mkdir -p /var/log/php /composer /npm
+RUN chown -R appuser:appuser /var/log/php /npm /composer
+RUN chmod -R 755 /var/log/php
 
 RUN npm set cache "/npm" -g
 
 RUN npm install -g npm
-
-RUN echo "ru_RU.UTF-8 UTF-8" >> /etc/locale.gen
-RUN locale-gen
 
 # Install composer
 ENV XDG_CONFIG_HOME /
@@ -57,7 +55,7 @@ ENV COMPOSER_ALLOW_SUPERUSER 1
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
 # Install extensions
 
-RUN docker-php-ext-install pdo_mysql zip exif gd simplexml intl dom curl bcmath opcache pcntl gmp
+RUN docker-php-ext-install zip exif gd simplexml intl dom curl bcmath opcache pcntl gmp
 RUN pecl install redis && docker-php-ext-enable redis
 
 COPY "php.ini" "/usr/local/etc/php/php.ini"
@@ -65,7 +63,7 @@ COPY "www.conf" "/usr/local/etc/php-fpm.d/www.conf"
 
 WORKDIR /var/www
 
-USER www-data
+USER appuser
 
 # Expose port 9000 and start php-fpm server
 EXPOSE 9000

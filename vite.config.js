@@ -9,7 +9,7 @@ export default defineConfig({
             refresh: true,
         }),
         purge({
-            templates: ['blade']
+            paths: ['resources/{js,views}/**/*.{blade.php,js}'],
         })
     ],
 });

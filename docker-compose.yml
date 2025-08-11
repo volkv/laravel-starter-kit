@@ -1,8 +1,15 @@
 services:
 
+    nginx-base:
+        image: nginx-base
+        build:
+            context: ./docker/nginx
+            dockerfile: Dockerfile.base
+
     php-fpm:
         image: php-fpm
         build: ./docker/php-fpm
+        user: "1000:1000"
         depends_on:
             - sql
             - redis

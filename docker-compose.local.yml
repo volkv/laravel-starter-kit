@@ -1,4 +1,9 @@
 services:
+  nginx-base:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile.base
+    image: nginx-base
 
   php-fpm:
     environment:
@@ -6,7 +11,10 @@ services:
 
   nginx:
     build:
+      context: ./docker/nginx
       dockerfile: local/Dockerfile
+    depends_on:
+      - nginx-base
     ports:
       - "8080:443"
 

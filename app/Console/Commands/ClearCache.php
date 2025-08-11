@@ -59,10 +59,10 @@ class ClearCache extends Command
      */
     public function execShellWithPrettyPrint($command)
     {
-        $this->info('---');
         $this->info($command);
         $output = shell_exec($command);
-        $this->info($output);
-        $this->info('---');
+        if ($output) {
+            $this->info($output);
+        }
     }
 }
