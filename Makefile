@@ -80,7 +80,10 @@ npm-prod:
 	make exec-root cmd="npm run build"
 
 npm-watch:
-	make exec-root cmd="npm run watch"
+	make exec-root cmd="npm run dev"
+
+cmd-test:
+	make exec cmd="php artisan volkv:test"
 
 perm:
 	sudo chown -R 1000:1000 .

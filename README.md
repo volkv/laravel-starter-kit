@@ -58,7 +58,7 @@ mkcert -install
 
 ```bash
 # Copy environment configuration
-cp .env.example .env
+cp .env.local .env
 
 # Edit APP_NAME and other settings as needed
 # APP_NAME=your-app-name
