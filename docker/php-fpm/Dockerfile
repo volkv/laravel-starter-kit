@@ -55,7 +55,7 @@ ENV COMPOSER_ALLOW_SUPERUSER 1
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
 # Install extensions
 
-RUN docker-php-ext-install zip exif gd simplexml intl dom curl bcmath opcache pcntl gmp
+RUN docker-php-ext-install zip exif gd intl bcmath opcache pcntl gmp
 RUN pecl install redis && docker-php-ext-enable redis
 
 COPY "php.ini" "/usr/local/etc/php/php.ini"
