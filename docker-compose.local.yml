@@ -1,9 +1,4 @@
 services:
-  nginx-base:
-    build:
-      context: ./docker/nginx
-      dockerfile: Dockerfile.base
-    image: nginx-base
 
   php-fpm:
     environment:
