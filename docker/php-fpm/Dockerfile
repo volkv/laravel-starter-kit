@@ -1,4 +1,4 @@
-FROM php:8.4.13-fpm-alpine
+FROM php:8.5.4-fpm-alpine
 
 # Install dependencies
 RUN apk add --no-cache \
@@ -48,14 +48,14 @@ RUN npm set cache "/npm" -g
 RUN npm install -g npm
 
 # Install composer
-ENV XDG_CONFIG_HOME /
-ENV COMPOSER_HOME /composer
-ENV COMPOSER_MEMORY_LIMIT -1
-ENV COMPOSER_ALLOW_SUPERUSER 1
+ENV XDG_CONFIG_HOME=/
+ENV COMPOSER_HOME=/composer
+ENV COMPOSER_MEMORY_LIMIT=-1
+ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
 # Install extensions
 
-RUN docker-php-ext-install zip exif gd intl bcmath opcache pcntl gmp
+RUN docker-php-ext-install zip exif gd intl bcmath pcntl gmp
 RUN pecl install redis && docker-php-ext-enable redis
 
 COPY "php.ini" "/usr/local/etc/php/php.ini"

@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a Laravel 12 boilerplate project configured with Docker for containerized development. The project uses:
-- **Backend**: PHP 8.2+ with Laravel 12 framework
+- **Backend**: PHP 8.5+ with Laravel 13 framework
 - **Database**: PostgreSQL 17.4 with Redis for caching
 - **Frontend**: Vite with Less for styling
 - **Infrastructure**: Docker Compose with nginx, PHP-FPM, PostgreSQL, and Redis
