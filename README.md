@@ -5,29 +5,30 @@ A modern, production-ready Laravel 12 boilerplate with Docker Alpine containeriz
 ## 🚀 Features
 
 - **Laravel 12** - Latest PHP web framework with modern architecture
-- **PHP 8.4.11** - Cutting-edge PHP performance and features
-- **Docker Alpine** - Lightweight containerized development environment
-- **PostgreSQL 17.4** - Robust relational database
-- **Redis** - High-performance caching and session storage
-- **Nginx Alpine** - Production-grade web server with automatic SSL
-- **Vite 6** - Lightning-fast frontend build tool with Less support
+- **PHP 8.5** - Cutting-edge PHP performance and features
+- **Docker Alpine** - Lightweight containerized development environment (~280 MB PHP image)
+- **PostgreSQL 18** - Robust relational database
+- **Redis 8** - High-performance caching and session storage
+- **Nginx Alpine** - Production-grade web server with automatic SSL and security headers
+- **Vite 8** - Lightning-fast frontend build tool with Less support
 - **Custom Artisan Commands** - Enhanced cache management and utilities
 - **Auto SSL/HTTPS** - Automatic mkcert certificate generation
 - **Makefile** - Simplified command management
-- **PHPUnit 11** - Modern testing framework
-- **OPcache** - PHP performance optimization
+- **PHPUnit 12** - Modern testing framework
+- **OPcache** - PHP performance optimization with signed remote reset
+- **Telegram Error Alerts** - Optional exception notifications
 
 ## 🛠 Tech Stack
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
 | Laravel | 12.x | PHP Web Framework |
-| PHP | 8.4.11 | Server-side Language |
-| PostgreSQL | 17.4 | Primary Database |
-| Redis | Latest | Caching & Sessions |
-| Node.js | 22.x | Frontend Tooling |
-| Vite | 6.x | Asset Building |
-| Nginx | 1.29.0-alpine | Web Server |
+| PHP | 8.5.4 | Server-side Language |
+| PostgreSQL | 18.3 | Primary Database |
+| Redis | 8.x | Caching & Sessions |
+| Node.js | 24.x | Frontend Tooling |
+| Vite | 8.x | Asset Building |
+| Nginx | 1.29.1-alpine | Web Server |
 | Docker | Alpine Linux | Container Base |
 
 ## 📋 Prerequisites
@@ -82,7 +83,7 @@ For **local development** (includes automatic SSL certificate generation):
 make update-local
 ```
 
-For **production**:
+For **production** (copy `.env.prod` to `.env` first, set `APP_DEBUG=false`, real DB password and domain):
 ```bash
 make update-prod
 ```
@@ -116,14 +117,26 @@ make ssl-generate       # Generate SSL certificates manually
 ### Docker Operations
 ```bash
 make docker-build       # Build containers (includes SSL generation)
-make docker-stop-all    # Stop all containers
+make docker-down        # Stop project containers
 make exec cmd="command" # Execute command in PHP container
 make bash              # Get bash shell in container
 ```
 
+### Dependency Management
+```bash
+make composer-install  # Install PHP dependencies from composer.lock
+make composer-update   # Update PHP dependencies (refreshes composer.lock)
+make npm-install       # Install npm dependencies
+make npm-ci            # Clean install from package-lock.json (used on prod)
+```
+
+Both `composer.lock` and `package-lock.json` are committed: deployments run
+`composer install` / `npm ci`, so production gets exactly the versions you
+tested. Upgrade dependencies deliberately via `make composer-update` /
+`make npm-update` and commit the refreshed lock files.
+
 ### Asset Building
 ```bash
-make npm-install       # Install npm dependencies
 make npm-dev          # Build assets for development
 make npm-prod         # Build assets for production
 make npm-watch        # Watch assets for changes
@@ -142,13 +155,13 @@ make restore-db      # Restore database from backup
 ```bash
 make cache           # Clear all caches (includes IDE helpers)
 make cache-noide     # Clear caches without IDE helpers
-make opcache-clear   # Clear OPcache
+make opcache-clear   # Clear OPcache (CLI + web via signed request)
 ```
 
 ### Testing
 ```bash
-make test           # Run all tests with setup/cleanup
-make cmd-test       # Custom test command
+make test           # Run all tests with setup
+make cmd-test       # Trigger a test exception (checks Telegram alerts)
 ```
 
 ### Logs & Monitoring
@@ -157,25 +170,38 @@ make log-queue      # View queue logs
 make log-sql        # View SQL logs
 make log-nginx      # View nginx logs
 make log-access     # View access logs
+make log-scheduler  # View scheduler logs
 ```
 
 ## 🏗 Architecture
 
 ### Docker Services
 
-- **php-fpm**: Main PHP application container (PHP 8.4.11-FPM Alpine)
+- **php-fpm**: Main PHP application container (PHP 8.5-FPM Alpine, runs as UID 1000)
 - **nginx**: Web server with automatic SSL certificate generation (Alpine)
 - **nginx-base**: Base nginx image with common configuration (Alpine)
-- **sql**: PostgreSQL 17.4 database
-- **redis**: Redis cache and session store
+- **sql**: PostgreSQL 18 database
+- **redis**: Redis 8 cache and session store
+- **scheduler / queue-default** (`docker-compose.queues.yml`): `schedule:work`
+  and queue workers — included in the production `COMPOSE_FILE` out of the box
+
+Compose files are selected via the `COMPOSE_FILE` variable in `.env`:
+local uses `docker-compose.yml:docker-compose.local.yml`, production adds
+`docker-compose.prod.yml:docker-compose.queues.yml` (queue workers and the
+scheduler run automatically).
 
 ### Custom Features
 
 - **Enhanced Cache Command**: `php artisan volkv:cache` - Comprehensive cache clearing
+- **OPcache Remote Reset**: `php artisan opcache:clear` clears CLI and web
+  OPcache via an HMAC-signed internal HTTP request (`opcache.validate_timestamps=0`
+  in production for maximum performance)
 - **Auto SSL Support**: Automatic mkcert certificate generation on build
 - **Asset Pipeline**: Vite with Less preprocessing and PurgeCSS
-- **Development Workflow**: Concurrent server, queue, logs, and Vite processes
-- **Alpine Linux**: Lightweight containers for faster builds and smaller images
+- **Telegram Alerts**: Uncaught exceptions are reported to a Telegram chat
+  (configure `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`; rate-limited, HTML-safe)
+- **Alpine Linux**: PHP image is ~280 MB — build dependencies are removed
+  after compiling extensions
 
 ### File Structure
 
@@ -183,7 +209,8 @@ make log-access     # View access logs
 ├── app/
 │   ├── Console/Commands/     # Custom Artisan commands
 │   ├── Http/Controllers/     # HTTP controllers
-│   └── Models/              # Eloquent models
+│   ├── Models/              # Eloquent models
+│   └── Services/            # Application services (TelegramService)
 ├── docker/                  # Docker configuration
 │   ├── nginx/              # Nginx configs
 │   └── php-fpm/            # PHP-FPM configs
@@ -209,49 +236,48 @@ APP_URL=https://localhost:8080
 DB_CONNECTION=pgsql
 DB_HOST=sql
 DB_PORT=5432
-DB_DATABASE=laravel
-DB_USERNAME=postgres
-DB_PASSWORD=password
+DB_DATABASE=postgres
+DB_USERNAME=root
+DB_PASSWORD=root
 
-CACHE_DRIVER=redis
+CACHE_STORE=redis
 SESSION_DRIVER=redis
+SESSION_SECURE_COOKIE=true
 QUEUE_CONNECTION=redis
 
 REDIS_HOST=redis
 REDIS_PASSWORD=null
-REDIS_PORT=6379
 ```
 
 ### OPcache Configuration
 
 OPcache is pre-configured and can be controlled via:
 ```env
-PHP_OPCACHE_ENABLE=true
+PHP_OPCACHE=1
 ```
 
 ## 🧪 Testing
 
-The project includes PHPUnit 11 with optimized configuration:
+The project includes PHPUnit 12; tests run against an in-memory SQLite database:
 
 ```bash
 # Run all tests
 make test
 
 # Run specific test suites
-./vendor/bin/phpunit --testsuite=Unit
-./vendor/bin/phpunit --testsuite=Feature
+make exec cmd="vendor/bin/phpunit --testsuite=Unit"
+make exec cmd="vendor/bin/phpunit --testsuite=Feature"
 ```
 
 ## 📈 Performance
 
 This starter kit includes several performance optimizations:
 
-- **Alpine Linux**: Lightweight containers reduce image size by ~70%
-- **OPcache**: Enabled with optimized settings
+- **Alpine Linux**: PHP image ~280 MB (build toolchain removed after compiling extensions)
+- **OPcache**: `validate_timestamps=0` in production with managed reset
 - **Redis**: For caching and sessions
 - **Nginx**: Optimized Alpine configuration with gzip compression
 - **Asset Optimization**: Vite with PurgeCSS for minimal CSS
-- **Docker**: Alpine-based images with multi-stage builds
 
 ## 🛡 Security
 
@@ -259,18 +285,26 @@ Security features included:
 
 - **HTTPS by default** with automatic certificate generation
 - **Trusted SSL certificates** using mkcert local CA
-- **Security headers** configured in Nginx
+- **Security headers** in Nginx: `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy` (enable HSTS at your CDN/edge or in a prod-only config —
+  it is intentionally not set globally to avoid poisoning `localhost` in dev)
+- **Hidden files blocked** (everything under `/.` except `.well-known`)
+- **Secure session cookies** (`SESSION_SECURE_COOKIE=true`)
+- **`APP_DEBUG=false`** in the production template
 - **Environment separation** between local/production
-- **Secure session configuration**
+- **Unprivileged containers**: PHP runs as UID 1000, DB/Redis ports bound to
+  `127.0.0.1` in production
 - **Alpine Linux** base reduces attack surface
 
 ## 📝 Development Notes
 
 - **Concurrent Development**: Use `composer run dev` for concurrent server, queue, logs, and Vite processes
-- **Auto SSL**: Certificates automatically generated on `make docker-build` 
+- **Auto SSL**: Certificates automatically generated on `make docker-build`
 - **Hot Reloading**: Vite provides instant asset updates during development
 - **Database**: PostgreSQL chosen for production-grade features
 - **Alpine Benefits**: Faster builds, smaller images, better security
+- **Cloudflare**: `docker/nginx/prod/cloudflare.conf` restores real client IPs
+  when running behind Cloudflare
 
 ## 🌟 Other Projects by Pavel Volkov
 

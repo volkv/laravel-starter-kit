@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a Laravel 12 boilerplate project configured with Docker for containerized development. The project uses:
-- **Backend**: PHP 8.5+ with Laravel 13 framework
-- **Database**: PostgreSQL 17.4 with Redis for caching
+- **Backend**: PHP 8.5 with Laravel 12 framework
+- **Database**: PostgreSQL 18 with Redis 8 for caching
 - **Frontend**: Vite with Less for styling
 - **Infrastructure**: Docker Compose with nginx, PHP-FPM, PostgreSQL, and Redis
 
@@ -15,7 +15,7 @@ This is a Laravel 12 boilerplate project configured with Docker for containerize
 ### Environment Setup
 ```bash
 # Copy environment configuration
-cp .env.example .env
+cp .env.local .env
 
 # Initial project setup (key generation, storage link, npm install, build)
 make setup
@@ -23,17 +23,21 @@ make setup
 # Start local development environment
 make update-local
 
-# Start production environment  
+# Start production environment
 make update-prod
 ```
+
+Compose files are selected via the `COMPOSE_FILE` variable in `.env`.
+Production (`.env.prod`) additionally includes `docker-compose.queues.yml`,
+which runs queue workers and the scheduler.
 
 ### Docker Operations
 ```bash
 # Build and start containers
 make docker-build
 
-# Stop all containers
-make docker-stop-all
+# Stop project containers
+make docker-down
 
 # Execute commands in PHP-FPM container
 make exec cmd="your-command"
@@ -79,6 +83,9 @@ make storage-link
 # Install npm dependencies
 make npm-install
 
+# Clean install from package-lock.json (used on prod)
+make npm-ci
+
 # Build assets for production
 make npm-prod
 
@@ -90,18 +97,20 @@ make npm-dev
 ```
 
 ### Composer Operations
+
+`composer.lock` and `package-lock.json` are committed. Deployments run
+`composer install` / `npm ci`; dependency upgrades are a deliberate act
+(`make composer-update` + commit the lock file).
+
 ```bash
-# Update all dependencies
-make composer-update
-
-# Update production dependencies only
-make composer-update-prod
-
-# Install dependencies
+# Install dependencies from composer.lock
 make composer-install
 
 # Install production dependencies only
 make composer-install-prod
+
+# Update all dependencies (refreshes composer.lock)
+make composer-update
 
 # Dump autoloader
 make composer-dump
@@ -109,13 +118,13 @@ make composer-dump
 
 ### Testing
 ```bash
-# Run all tests (includes pre-test setup and post-test cleanup)
+# Run all tests (includes pre-test setup)
 make test
 
 # Run only feature tests
 make _test-feature
 
-# Custom test command
+# Trigger a test exception (checks Telegram error notifications)
 make cmd-test
 ```
 
@@ -161,12 +170,25 @@ make log-nginx
   - Laravel optimization clearing
   - OPcache clearing (if enabled)
   - Queue restart
+- `php artisan opcache:clear` - Clears CLI OPcache and web OPcache via an
+  HMAC-signed request to `/internal/opcache-clear` (signature derived from
+  `APP_KEY`, 60s validity)
+- `php artisan volkv:test` - Intentionally throws to verify Telegram error
+  notifications
+
+### Error Notifications
+Uncaught exceptions (except 4xx HTTP and validation errors) are sent to
+Telegram via `App\Services\TelegramService` (configured through
+`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, rate-limited to 20/min).
 
 ### Docker Services
-- **php-fpm**: Main PHP application container
+- **php-fpm**: Main PHP application container (runs as UID 1000)
 - **nginx**: Web server with SSL support for local development
-- **sql**: PostgreSQL database
+- **sql**: PostgreSQL 18 database (volume mounted at `/var/lib/postgresql`,
+  the layout required by 18+ images)
 - **redis**: Redis cache/session store
+- **scheduler / queue-default**: defined in `docker-compose.queues.yml`,
+  included in production `COMPOSE_FILE`
 
 ### Frontend Assets
 - **Vite** configuration in `vite.config.js`
@@ -178,6 +200,7 @@ make log-nginx
 - `app/Console/Commands/` - Custom Artisan commands
 - `app/Http/Controllers/` - HTTP controllers
 - `app/Models/` - Eloquent models
+- `app/Services/` - Application services (TelegramService)
 - `resources/views/` - Blade templates
 - `routes/web.php` - Web routes
 - `docker/` - Docker configuration files
@@ -188,9 +211,8 @@ make log-nginx
 1. The project uses a custom `dev` script in `composer.json` that runs server, queue, logs, and Vite concurrently
 2. SSL certificates can be generated with mkcert for local HTTPS development
 3. The application runs on `https://localhost:8080/` in local development
-4. File permissions are managed via `make perm` command
 
 ## Testing Configuration
-- PHPUnit configured in `phpunit.xml`
+- PHPUnit 12 configured in `phpunit.xml`
 - Test suites: Unit (`tests/Unit/`) and Feature (`tests/Feature/`)
-- Test environment uses array drivers for cache, mail, and session
+- Test environment uses in-memory SQLite and array drivers for cache, mail, and session
