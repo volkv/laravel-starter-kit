@@ -1,7 +1,7 @@
 services:
 
   scheduler:
-    image: php-fpm
+    image: laravel-starter-kit-php-fpm
     restart: unless-stopped
     depends_on:
       - php-fpm
@@ -14,7 +14,7 @@ services:
     command: "php /var/www/artisan schedule:work"
 
   queue-default:
-    image: php-fpm
+    image: laravel-starter-kit-php-fpm
     restart: unless-stopped
     depends_on:
       - php-fpm
