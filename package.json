@@ -6,11 +6,9 @@
         "build": "vite build"
     },
     "devDependencies": {
+        "@erbelion/vite-plugin-laravel-purgecss": "^0.4.8",
         "laravel-vite-plugin": "^3.0",
-        "less-loader": "^12",
+        "less": "^4",
         "vite": "^8"
-    },
-    "dependencies": {
-        "@erbelion/vite-plugin-laravel-purgecss": "^0.4"
     }
 }
