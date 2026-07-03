@@ -4,6 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 class TelegramService
 {
@@ -12,8 +14,8 @@ class TelegramService
 
     public function __construct()
     {
-        $this->botToken = config('telegram.bot_token');
-        $this->chatId = config('telegram.chat_id');
+        $this->botToken = config('telegram.bot_token') ?? '';
+        $this->chatId = config('telegram.chat_id') ?? '';
     }
 
     public function sendMessage(string $message): bool
@@ -24,7 +26,7 @@ class TelegramService
         }
 
         try {
-            $response = Http::post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
+            $response = Http::timeout(5)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
                 'text' => $message,
                 'parse_mode' => 'HTML',
@@ -52,37 +54,68 @@ class TelegramService
 
     public function sendErrorNotification(\Throwable $exception, array $context = []): bool
     {
+        if (!$this->allowedByRateLimiter()) {
+            return false;
+        }
+
         $message = $this->formatErrorMessage($exception, $context);
         return $this->sendMessage($message);
+    }
+
+    /**
+     * Cap error notifications so an error storm doesn't flood Telegram
+     * (and doesn't stall every failing request on the HTTP call).
+     */
+    private function allowedByRateLimiter(): bool
+    {
+        try {
+            $allowed = RateLimiter::attempt('telegram-error-notification', 20, fn () => true);
+
+            if (!$allowed) {
+                Log::warning('Telegram error notification skipped: rate limit reached');
+            }
+
+            return (bool) $allowed;
+        } catch (\Throwable $e) {
+            // The limiter's cache store is down (possibly the error being
+            // reported) — better to send unthrottled than to lose the alert.
+            Log::warning('Telegram rate limiter unavailable, sending without throttle', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return true;
+        }
     }
 
     private function formatErrorMessage(\Throwable $exception, array $context = []): string
     {
         $message = "🚨 <b>Application Error</b>\n\n";
-        $message .= "<b>Environment:</b> " . app()->environment() . "\n";
-        $message .= "<b>Error:</b> " . get_class($exception) . "\n";
-        $message .= "<b>Message:</b> " . $exception->getMessage() . "\n";
-        $message .= "<b>File:</b> " . $exception->getFile() . ":" . $exception->getLine() . "\n";
-        
+        $message .= "<b>Environment:</b> " . e(app()->environment()) . "\n";
+        $message .= "<b>Error:</b> " . e(get_class($exception)) . "\n";
+        $message .= "<b>Message:</b> " . e(Str::limit($exception->getMessage(), 700)) . "\n";
+        $message .= "<b>File:</b> " . e($exception->getFile() . ":" . $exception->getLine()) . "\n";
+
         if (!empty($context['url'])) {
-            $message .= "<b>URL:</b> " . $context['url'] . "\n";
+            $message .= "<b>URL:</b> " . e($context['url']) . "\n";
         }
-        
+
         if (!empty($context['user_id'])) {
-            $message .= "<b>User ID:</b> " . $context['user_id'] . "\n";
+            $message .= "<b>User ID:</b> " . e((string) $context['user_id']) . "\n";
         }
 
         if (!empty($context['request_id'])) {
-            $message .= "<b>Request ID:</b> " . $context['request_id'] . "\n";
+            $message .= "<b>Request ID:</b> " . e((string) $context['request_id']) . "\n";
         }
 
-        $message .= "\n<b>Stack trace (first 3 lines):</b>\n";
         $traceLines = explode("\n", $exception->getTraceAsString());
-        $limitedTrace = array_slice($traceLines, 0, 3);
-        $message .= "<code>" . implode("\n", $limitedTrace) . "</code>";
+        $limitedTrace = implode("\n", array_slice($traceLines, 0, 3));
+        $trace = "\n<b>Stack trace (first 3 lines):</b>\n"
+            . "<code>" . e(Str::limit($limitedTrace, 1000)) . "</code>";
 
-        if (strlen($message) > 4000) {
-            $message = substr($message, 0, 4000) . '...';
+        // Telegram hard limit is 4096 chars; drop the trace rather than cut
+        // mid-tag/mid-entity, which would make the whole message unparseable.
+        if (mb_strlen($message . $trace) <= 4000) {
+            $message .= $trace;
         }
 
         return $message;
