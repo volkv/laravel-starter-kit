@@ -6,11 +6,12 @@
     "license": "MIT",
     "require": {
         "php": "^8.5",
-        "laravel/framework": "^13",
+        "laravel/framework": "^12",
         "laravel/tinker": "^3.0",
         "ext-zend-opcache": "*"
     },
     "require-dev": {
+        "barryvdh/laravel-ide-helper": "^3.7",
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.1",
         "laravel/pint": "^1.13",
@@ -39,7 +40,7 @@
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
         ],
         "post-root-package-install": [
-            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+            "@php -r \"file_exists('.env') || copy('.env.local', '.env');\""
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi",

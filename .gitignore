@@ -20,6 +20,6 @@ yarn-error.log
 /.idea
 /.vscode
 /.zed
-composer.lock
-package-lock.json
+/_ide_helper.php
+/.phpstorm.meta.php
 .bash_history

@@ -1,3 +1,5 @@
+-include .env
+
 exec:
 	docker compose exec php-fpm $$cmd
 
@@ -21,21 +23,14 @@ docker-build: ssl-generate
 storage-link:
 	make exec cmd="php artisan storage:link"
 
-
 pull:
 	git pull
-	sudo chown -R 33:33 storage/framework/views/
-	sudo chmod -R 775  storage/framework/views/
 
-
-update-local: docker-stop-all pull perm docker-build composer-update npm-install npm-prod cache
+update-local: docker-down pull docker-build composer-install npm-install npm-prod cache
 
 setup: key-generate storage-link npm-install npm-prod
 
-update-prod: pull perm docker-build composer-update-prod npm-install npm-prod cache
-
-docker-stop-all:
-	docker ps -q | xargs -r docker stop || true
+update-prod: pull docker-build composer-install-prod npm-ci npm-prod cache
 
 key-generate:
 	make exec cmd="php artisan key:generate"
@@ -64,32 +59,38 @@ seed-db:
 composer-update:
 	make exec cmd="composer update"
 
-composer-update-prod:
-	make exec cmd="composer update --no-dev"
-
 composer-install:
 	make exec cmd="composer install"
 
+composer-install-prod:
+	make exec cmd="composer install --no-dev"
+
+composer-dump:
+	make exec cmd="composer dump-autoload"
+
 npm-install:
-	make exec-root cmd="npm install"
+	make exec cmd="npm install"
+
+npm-ci:
+	make exec cmd="npm ci"
 
 npm-update:
-	make exec-root cmd="npm update"
+	make exec cmd="npm update"
 
 npm-prod:
-	make exec-root cmd="npm run build"
+	make exec cmd="npm run build"
 
 npm-watch:
-	make exec-root cmd="npm run dev"
+	make exec cmd="npm run dev"
 
 cmd-test:
 	make exec cmd="php artisan volkv:test"
 
 perm:
 	sudo chown -R 1000:1000 .
-	sudo chmod -R 775  .
+	sudo chmod -R ug+rwX .
 
-cache: perm
+cache:
 	make exec cmd="php artisan volkv:cache"
 
 cache-noide:
@@ -97,12 +98,6 @@ cache-noide:
 
 opcache-clear:
 	make exec cmd="php artisan opcache:clear"
-
-composer-install-prod:
-	make exec cmd="composer install --no-dev"
-
-composer-dump:
-	make exec cmd="composer dump-autoload"
 
 log-queue:
 	docker compose logs --tail 50 -f queue-default
@@ -120,12 +115,10 @@ log-nginx:
 	docker compose logs --tail="50" nginx
 
 backup-db:
-	docker compose exec  -u root  -T sql bash -c  "pg_dump -Fc postgres > /backups/backup.gz && cp /backups/backup.gz /backups/old/`date +%d-%m-%Y"_"%H_%M_%S`.gz"
+	docker compose exec -u root -T sql bash -c "pg_dump -Fc -U ${DB_USERNAME} ${DB_DATABASE} > /backups/backup.gz && cp /backups/backup.gz /backups/old/`date +%d-%m-%Y"_"%H_%M_%S`.gz"
 
 restore-db:
-	docker compose exec  -u root  -T sql bash -c  "dropdb --force --if-exists postgres && createdb postgres && pg_restore -d postgres -j 4 /backups/backup.gz"
-
--include .env
+	docker compose exec -u root -T sql bash -c "dropdb --force --if-exists -U ${DB_USERNAME} ${DB_DATABASE} && createdb -U ${DB_USERNAME} ${DB_DATABASE} && pg_restore -U ${DB_USERNAME} -d ${DB_DATABASE} -j 4 /backups/backup.gz"
 
 push-db:
 	scp -i ~/.ssh/id_rsa docker/volume/postgres/backup.gz root@${SERVER_IP}:${GITHUB_REPOSITORY}/docker/volume/postgres/backup.gz
@@ -146,16 +139,10 @@ _test-pre:
 	make npm-prod && \
 	make cache-noide
 
-after-test:
-	export PHP_OPCACHE=0 && \
-	make docker-build
-	make cache-noide
-
 _test-all:
-	make exec cmd="/var/www/vendor/phpunit/phpunit/phpunit --configuration /var/www/phpunit.xml /var/www/tests"
+	make exec cmd="vendor/bin/phpunit"
 
 _test-feature:
-	make exec cmd="/var/www/vendor/phpunit/phpunit/phpunit --configuration /var/www/phpunit.xml /var/www/tests/Feature"
+	make exec cmd="vendor/bin/phpunit --testsuite=Feature"
 
-test: _test-pre _test-all after-test
-
+test: _test-pre _test-all
