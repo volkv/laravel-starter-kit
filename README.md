@@ -100,7 +100,12 @@ make npm-watch
 
 ### 6. Access Your Application
 
-🌐 **Local**: https://localhost:8080/ (with trusted SSL certificate)
+🌐 **Local**: `https://localhost:$APP_PORT/` (with trusted SSL certificate)
+
+Set `APP_PORT` in `.env` before the first `make docker-build` — it has no default on purpose, so
+that two projects on the same machine cannot silently claim the same host port. Keep `APP_URL`
+in sync with it. Postgres and redis publish no host port; reach them with
+`make bash` or `docker compose exec sql psql …`.
 
 **Note**: SSL certificates are automatically generated using your local mkcert CA, so you'll see a green lock in your browser without any security warnings!
 

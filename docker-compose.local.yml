@@ -11,12 +11,18 @@ services:
     depends_on:
       - nginx-base
     ports:
-      - "8080:443"
+      # Required, and deliberately without a default. Several projects share one dev machine,
+      # so a hardcoded port here is a collision waiting to happen: on 2026-08-02 ten projects
+      # of the fleet all claimed 8080 and could not bring their stacks up alongside each other.
+      # Compose stops with the message below when APP_PORT is unset — a missing port should be
+      # a question, never a silent conflict. Keep it in sync with APP_URL in .env.
+      - "${APP_PORT:?set APP_PORT in .env — every project on this machine needs its own host port}:443"
 
-  redis:
-    ports:
-      - "127.0.0.1:63791:6379"
-
-  sql:
-    ports:
-      - "127.0.0.1:54322:5432"
+  # redis and sql publish NO host ports, on purpose.
+  # The app and the test suite reach them over the compose network by service name, so a host
+  # port buys only a desktop client — while a fixed one collides fleet-wide (eight projects
+  # claimed 54321 and 63791 simultaneously on 2026-08-02).
+  # Need a client for one session:
+  #   docker compose exec sql psql -U "$DB_USERNAME" "$DB_DATABASE"
+  #   docker compose exec redis redis-cli
+  # Need a host port for a tool that cannot exec: add an uncommitted docker-compose.override.yml.

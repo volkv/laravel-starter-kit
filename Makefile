@@ -16,9 +16,13 @@ ssl-generate:
 	mkdir -p docker/nginx/local/ssl
 	mkcert -key-file docker/nginx/local/ssl/key.pem -cert-file docker/nginx/local/ssl/cert.pem localhost
 
+# `up --build -d` reads each running container's image ID BEFORE building, so a freshly built
+# image is not noticed and the change lands one deploy late — green deploy, right files on
+# disk, stale behaviour inside the container. Build and start are therefore separate steps.
 docker-build: ssl-generate
 	docker compose build nginx-base
-	docker compose up --build -d
+	docker compose build
+	docker compose up -d
 
 storage-link:
 	make exec cmd="php artisan storage:link"
@@ -86,9 +90,14 @@ npm-watch:
 cmd-test:
 	make exec cmd="php artisan volkv:test"
 
+# The chmod flips the executable bit on tracked files, and with core.fileMode=true git then
+# reports them all as modified — thousands of phantom changes on a production checkout, inside
+# which a real edit becomes invisible. Turning fileMode off makes `git status` mean something
+# again; content changes still show.
 perm:
 	sudo chown -R 1000:1000 .
 	sudo chmod -R ug+rwX .
+	git config core.fileMode false
 
 cache:
 	make exec cmd="php artisan volkv:cache"
@@ -144,5 +153,11 @@ _test-all:
 
 _test-feature:
 	make exec cmd="vendor/bin/phpunit --testsuite=Feature"
+
+# `test` rebuilds the image and the assets first (_test-pre) — correct before shipping, wrong
+# as the everyday check: it cannot run without the right to build, and when it fails you cannot
+# tell the code from a stale or foreign image. `test-quick` runs the same suite against the
+# stack as it stands. Use it to verify a change; use `test` before a release.
+test-quick: _test-all
 
 test: _test-pre _test-all
