@@ -126,7 +126,10 @@ log-nginx:
 backup-db:
 	docker compose exec -u root -T sql bash -c "pg_dump -Fc -U ${DB_USERNAME} ${DB_DATABASE} > /backups/backup.gz && cp /backups/backup.gz /backups/old/`date +%d-%m-%Y"_"%H_%M_%S`.gz"
 
+# The dump is validated (pg_restore --list) BEFORE the live database is dropped: a missing or
+# corrupt file must not cost the data it was meant to restore.
 restore-db:
+	docker compose exec -u root -T sql pg_restore --list /backups/backup.gz > /dev/null
 	docker compose exec -u root -T sql bash -c "dropdb --force --if-exists -U ${DB_USERNAME} ${DB_DATABASE} && createdb -U ${DB_USERNAME} ${DB_DATABASE} && pg_restore -U ${DB_USERNAME} -d ${DB_DATABASE} -j 4 /backups/backup.gz"
 
 push-db:

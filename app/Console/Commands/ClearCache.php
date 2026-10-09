@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Process;
 
 class ClearCache extends Command
 {
@@ -60,9 +61,12 @@ class ClearCache extends Command
     public function execShellWithPrettyPrint($command)
     {
         $this->info($command);
-        $output = shell_exec($command);
-        if ($output) {
-            $this->info($output);
+        // A failed step fails the whole command: shell_exec() hid exit codes, so a deploy could
+        // report success with a stale OPcache or a broken autoload.
+        $result = Process::path(base_path())->timeout(300)->run($command);
+        if ($result->output()) {
+            $this->info($result->output());
         }
+        $result->throw();
     }
 }

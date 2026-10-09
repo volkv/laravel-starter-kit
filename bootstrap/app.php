@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Personal data must not leave through error reports: see RedactedQueryException.
+        $exceptions->map(\Illuminate\Database\QueryException::class, fn (\Illuminate\Database\QueryException $e) => \App\Exceptions\RedactedQueryException::from($e));
+
         $exceptions->report(function (Throwable $e) {
             // Skip HTTP exceptions with status codes we don't want to report
             if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
@@ -31,7 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             $telegramService = app(\App\Services\TelegramService::class);
             $context = [
-                'url' => request()->fullUrl(),
+                'url' => request()->url(),
             ];
             $telegramService->sendErrorNotification($e, $context);
         });
